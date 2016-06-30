@@ -15,8 +15,7 @@ Set the directory name to SRCDIR in buildfarm.sh. The default is:
 Run git clone at the $SRCDIR.
 
 This is avalable from
-<https://github.com/yugo-n/docker-pgpool-II-regression/tree/spike>
-(forked from <https://github.com/tatsuo-ishii/docker-pgpool-II-regression>)
+<https://github.com/pgpool/docker-pgpool-II-regression>)
 
 For example:
 
