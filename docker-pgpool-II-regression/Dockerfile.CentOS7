@@ -1,0 +1,58 @@
+# Docker file to run pgpool-II regression tests
+
+FROM centos:centos7
+
+MAINTAINER Tatsuo Ishii <ishii@sraoss.co.jp>
+MAINTAINER Yugo Nagata <nagata@sraoss.co.jp>
+
+ENV http_proxy http://www-proxy.sra.co.jp:80/
+ENV https_proxy http://www-proxy.sra.co.jp:80/
+
+ENV ARCH rhel-7-x86_64
+
+ENV PG_REL_RPM_93 pgdg-centos93-9.3-2.noarch.rpm
+ENV PG_REL_RPM_94 pgdg-centos94-9.4-2.noarch.rpm
+
+ENV JDBC_DRIVER_93 postgresql-9.3-1104.jdbc41.jar
+ENV JDBC_DRIVER_94 postgresql-9.4-1204.jdbc42.jar
+
+ENV PGHOME /var/lib/pgsql
+ENV JDK java-1.8.0-openjdk-devel.x86_64
+
+RUN echo "timeout=300" >> /etc/yum.conf
+RUN yum update -y; exit 0
+
+# Install necessary buid tools and regression test tools
+RUN yum install -y wget gcc bison flex make autoconf automake git file openssl-devel \
+ed which openssh-server openssh-clients tar memcached libmemcached-devel ruby bc make net-tools $JDK
+
+# this is neccessary for "su postgres" and to know pgsql version
+RUN rpm -ivh http://yum.postgresql.org/9.3/redhat/${ARCH}/${PG_REL_RPM_93}
+RUN rpm -ivh http://yum.postgresql.org/9.4/redhat/${ARCH}/${PG_REL_RPM_94}
+RUN yum install -y postgresql93-server
+RUN yum install -y postgresql94-server
+
+# Download JDBC driver
+RUN wget http://jdbc.postgresql.org/download/${JDBC_DRIVER_93} -O /usr/share/${JDBC_DRIVER_93}
+RUN wget http://jdbc.postgresql.org/download/${JDBC_DRIVER_94} -O /usr/share/${JDBC_DRIVER_94}
+
+# Clone pgpool-II source
+RUN su -c 'cd $PGHOME && git clone http://git.postgresql.org/git/pgpool2.git' postgres
+
+# Setup SSH to allow password less login to itself
+RUN sed -ri 's/UsePAM yes/#UsePAM yes/g' /etc/ssh/sshd_config
+RUN sed -ri 's/#UsePAM no/UsePAM no/g' /etc/ssh/sshd_config
+RUN su -c 'ssh-keygen -N "" -t rsa -f $PGHOME/.ssh/id_rsa;cp $PGHOME/.ssh/id_rsa.pub $PGHOME/.ssh/authorized_keys' postgres
+RUN su -c 'echo "StrictHostKeyChecking no" > $PGHOME/.ssh/config' postgres
+RUN echo "postgres:postgres" | chpasswd
+
+# Add files
+ADD test.c /tmp/test.c
+ADD start.sh /tmp/start.sh
+ADD setup.sh /tmp/setup.sh
+ADD regress.sh /tmp/regress.sh
+
+# Disable getty
+RUN rm -f /lib/systemd/system/getty*; rm -f /lib/systemd/system/serial-getty* 
+
+CMD /sbin/init
