@@ -3,7 +3,7 @@
 TIMEOUT=8000
 
 # Do docker build?
-#DOCKER_BUILD=1
+DOCKER_BUILD=1
 
 NO_CACHE="--no-cache"
 #NO_CACHE=""
@@ -20,6 +20,7 @@ ERROR=0
 # mail address
 MAILTO=pgpool-hackers@pgpool.net
 REPLYTO=$MAILTO
+#FROM=buildfarm@your.hostname
 FROM=buildfarm@pgpool.net
 SUBJECT="pgpool-II buildfarm results"
 
@@ -29,7 +30,6 @@ SRCDIR=/var/buildfarm
 VOLUM=$SRCDIR/volum
 GITROOT=$SRCDIR/docker-pgpool-II-regression
 LOGDIR=$SRCDIR/log
-WORKDIR=$GITROOT/work
 
 TMPLOG=$LOGDIR/tmp.log
 RESULT=$LOGDIR/result
@@ -135,6 +135,26 @@ do
     	DOCKERFILE_DIR=`getDockerfileDir $OS`
 		DOCKERFILE_NAME=Dockerfile.$OS
 
+        if [ $# -gt 1 ];then
+            if [ $1 = "-p" ];then
+                proxy=$2
+                proxy_set=y
+                echo "inserting proxy address $2."
+            else
+                echo "wrong parameter $1".
+                exit 1
+            fi
+        else
+            proxy_set=n
+        fi
+
+        echo "======= Start docker build ======="
+        if [ $proxy_set = "y" ];then
+            cp $DOCKERFILE_NAME $DOCKERFILE_NAME.orig
+            cat Dockerfile|sed -e "/FROM/ aENV https_proxy $proxy" -e "/FROM/ aENV http_proxy $proxy" > $DOCKERFILE_NAME.proxy
+            cp $DOCKERFILE_NAME.proxy $DOCKERFILE_NAME
+        fi
+
         docker build -t $TAG -f $DOCKERFILE_NAME $NO_CACHE . > $TMPLOG 2>&1
         RST=$?
         cat $TMPLOG | col -xb | $SED > $BUILD_LOG
@@ -195,10 +215,10 @@ do
             fi
 
 
-	        TEST_ERROR=`awk '/...failed.$/' $LOG`
-	        TEST_TIMEOUT=`awk '/...timeout.$/' $LOG`
+	        TEST_ERROR=`awk '/\.failed\.$/' $LOG`
+	        TEST_TIMEOUT=`awk '/\.timeout\.$/' $LOG`
             if [ ! -z "$TEST_ERROR" -o ! -z "$TEST_TIMEOUT" -o ! -z "$MAKE_ERROR" ]; then
-                echo "$BRANCH $PGSQL_VERSION $OS" >> $SUMMARY
+            	echo "* $BRANCH  PostgreSQL $PGSQL  $OS" >> $SUMMARY
             	if [ ! -z "$TEST_ERROR" ]; then
             	    echo "$TEST_ERROR" >> $SUMMARY
             	elif [ ! -z "$TEST_TIMEOUT" ]; then
@@ -215,7 +235,7 @@ do
     done
 done
 
-if [ !$ERROR ]; then
+if [ $ERROR -eq 0 ]; then
     echo "All tests succeeded." >> $SUMMARY
     echo "=========================================================================" >> $SUMMARY
     echo >> $SUMMARY

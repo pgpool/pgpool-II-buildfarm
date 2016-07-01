@@ -10,17 +10,17 @@ Set the directory name to SRCDIR in buildfarm.sh. The default is:
 
     SRCDIR=/var/buildfarm
 
-### 2. Get docker-pgpool-II-regression from github.
+### 2. Get pgpool-II-buildfarm from github.
 
 Run git clone at the $SRCDIR.
 
 This is avalable from
-<https://github.com/pgpool/docker-pgpool-II-regression>)
+<https://github.com/pgpool/pgpool-II-buildfarm>
 
 For example:
 
     $ cd /var/buildfarm
-    $ git clone https://github.com/yugo-n/docker-pgpool-II-regression.git
+    $ git clone https://github.com/pgpool/pgpool-II-buildfarm.git
 
 ### 3. Mail address configuration
 
