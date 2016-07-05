@@ -29,4 +29,10 @@ Specify the e-mail address to send the result and the sender address to MAILTO a
     MAILTO=pgpool-buildfarm@your.hostname
     FROM=buildfarm@your.hostname
 
-### 4. Configure cron to run buildfarm.sh and clean.sh periodically
+### 4. Configure cron to run buildfarm.sh periodically
+    
+If necessary, the proxy setting should be added.
+
+For example:
+
+    /var/buildfarm/buildfarm.sh -p http://your.proxy.server:8080

@@ -18,17 +18,16 @@ SEND_MAIL=1
 ERROR=0
 
 # mail address
-MAILTO=pgpool-hackers@pgpool.net
+MAILTO=pgpool-buildfarm@your.hostname
 REPLYTO=$MAILTO
-#FROM=buildfarm@your.hostname
-FROM=buildfarm@pgpool.net
+FROM=buildfarm@your.hostname
 SUBJECT="pgpool-II buildfarm results"
 
 # directories
 SRCDIR=/var/buildfarm
 
 VOLUM=$SRCDIR/volum
-GITROOT=$SRCDIR/docker-pgpool-II-regression
+GITROOT=$SRCDIR/pgpool-II-buildfram/docker-pgpool-II-regression
 LOGDIR=$SRCDIR/log
 
 TMPLOG=$LOGDIR/tmp.log
@@ -48,7 +47,20 @@ PGSQL_LIST=(9.3 9.4)
 BRANCH_LIST=(master V3_5_STABLE V3_4_STABLE V3_3_STABLE V3_2_STABLE V3_1_STABLE)
 
 #ntp server
-NTP_SERVER=sranhm
+NTP_SERVER=your_ntp_server
+
+#proxy settings
+if [ $# -gt 1 ];then
+    if [ $1 = "-p" ];then
+        proxy=$2
+        proxy_set=y
+    else
+        echo "wrong parameter $1".
+        exit 1
+    fi
+else
+    proxy_set=n
+fi
 
 # functions
 
@@ -135,21 +147,9 @@ do
     	DOCKERFILE_DIR=`getDockerfileDir $OS`
 		DOCKERFILE_NAME=Dockerfile.$OS
 
-        if [ $# -gt 1 ];then
-            if [ $1 = "-p" ];then
-                proxy=$2
-                proxy_set=y
-                echo "inserting proxy address $2."
-            else
-                echo "wrong parameter $1".
-                exit 1
-            fi
-        else
-            proxy_set=n
-        fi
-
         echo "======= Start docker build ======="
         if [ $proxy_set = "y" ];then
+            echo "inserting proxy address $2."
             cp $DOCKERFILE_NAME $DOCKERFILE_NAME.orig
             cat Dockerfile|sed -e "/FROM/ aENV https_proxy $proxy" -e "/FROM/ aENV http_proxy $proxy" > $DOCKERFILE_NAME.proxy
             cp $DOCKERFILE_NAME.proxy $DOCKERFILE_NAME
@@ -226,7 +226,7 @@ do
 	    	    elif [ ! -z "$MAKE_ERROR" ]; then
             	    echo "$MAKE_ERROR" >> $SUMMARY
 		        fi
-		        $ERROR=1
+		        ERROR=1
             fi
 
             awk '/^testing/,EOF' $LOG >> $RESULT
@@ -237,9 +237,9 @@ done
 
 if [ $ERROR -eq 0 ]; then
     echo "All tests succeeded." >> $SUMMARY
-    echo "=========================================================================" >> $SUMMARY
-    echo >> $SUMMARY
 fi
+echo "=========================================================================" >> $SUMMARY
+echo >> $SUMMARY
 
 echo "end: " `LANG=en date`>> $RESULT
 
