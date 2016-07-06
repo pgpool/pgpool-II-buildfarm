@@ -2,8 +2,8 @@
 
 TIMEOUT=8000
 
-# force docker build?
-#DOCKER_BUILD=1
+# Do docker build?
+DOCKER_BUILD=1
 
 NO_CACHE="--no-cache"
 #NO_CACHE=""
@@ -14,7 +14,10 @@ BUILD_DAY=0
 # Send mail?
 SEND_MAIL=1
 
-# mail address to send the result
+# test_error
+ERROR=0
+
+# mail address
 MAILTO=pgpool-buildfarm@your.hostname
 REPLYTO=$MAILTO
 FROM=buildfarm@your.hostname
@@ -24,26 +27,40 @@ SUBJECT="pgpool-II buildfarm results"
 SRCDIR=/var/buildfarm
 
 VOLUM=$SRCDIR/volum
-GITROOT=$SRCDIR/docker-pgpool-II-regression
+GITROOT=$SRCDIR/pgpool-II-buildfram/docker-pgpool-II-regression
 LOGDIR=$SRCDIR/log
 
 TMPLOG=$LOGDIR/tmp.log
 RESULT=$LOGDIR/result
+SUMMARY=$LOGDIR/summary
 
 # sed command
 COLOR='\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]'
 NOCOLOR='\x1B\(B'
-SEDPTN="s/($COLOR|$NOCOLOR)//g" 
+SEDPTN="s/($COLOR|$NOCOLOR)//g"
 SED="sed -r $SEDPTN"
 
 # targets
 
 OS_LIST=(CentOS6 CentOS7)
 PGSQL_LIST=(9.3 9.4)
-BRANCH_LIST=(master V3_5_STABLE V3_4_STABLE V3_3_STABLE)
+BRANCH_LIST=(master V3_5_STABLE V3_4_STABLE V3_3_STABLE V3_2_STABLE V3_1_STABLE)
 
 #ntp server
-NTP_SERVER=sranhm
+NTP_SERVER=your_ntp_server
+
+#proxy settings
+if [ $# -gt 1 ];then
+    if [ $1 = "-p" ];then
+        proxy=$2
+        proxy_set=y
+    else
+        echo "wrong parameter $1".
+        exit 1
+    fi
+else
+    proxy_set=n
+fi
 
 # functions
 
@@ -59,7 +76,7 @@ function getName()
     OS=$1
     BRANCH=$2
     PGSQL_VERSION=$3
-	
+
     local os=`echo $OS | tr [A-Z] [a-z]`
     local POOLVER=`getPoolVer $BRANCH`
     local PGVER=`echo $PGSQL_VERSION | tr -d . | cut -c 1-2`
@@ -80,9 +97,9 @@ function getPoolVer()
     local BRANCH=$1
 
     case $BRANCH in
-    "master" ) 
+    "master" )
         echo master ;;
-    *)  
+    *)
         echo $BRANCH | tr -d V_STABLE ;;
     esac
 }
@@ -103,6 +120,8 @@ function printEnvInfo()
 
 # main
 
+./$SRCDIR/clean.sh > $TMPLOG 2>&1
+
 ntpdate $NTP_SERVER > /dev/null
 
 if [ -e $LOGDIR ]; then
@@ -111,6 +130,7 @@ fi
 mkdir $LOGDIR
 
 echo "pgpool-II buildfarm" >> $RESULT
+echo "=========================================================================" >> $SUMMARY
 echo "start: " `LANG=en date`>> $RESULT
 echo >> $RESULT
 
@@ -122,13 +142,21 @@ do
     if [ -n "$DOCKER_BUILD" -o `date '+%w'` = $BUILD_DAY ]; then
         echo -n "** building docker image ..." >> $RESULT
         BUILD_LOG=$LOGDIR/$OS-build.log
-   
+
 		cd $GITROOT
     	DOCKERFILE_DIR=`getDockerfileDir $OS`
 		DOCKERFILE_NAME=Dockerfile.$OS
 
+        echo "======= Start docker build ======="
+        if [ $proxy_set = "y" ];then
+            echo "inserting proxy address $2."
+            cp $DOCKERFILE_NAME $DOCKERFILE_NAME.orig
+            cat Dockerfile|sed -e "/FROM/ aENV https_proxy $proxy" -e "/FROM/ aENV http_proxy $proxy" > $DOCKERFILE_NAME.proxy
+            cp $DOCKERFILE_NAME.proxy $DOCKERFILE_NAME
+        fi
+
         docker build -t $TAG -f $DOCKERFILE_NAME $NO_CACHE . > $TMPLOG 2>&1
-        RST=$? 
+        RST=$?
         cat $TMPLOG | col -xb | $SED > $BUILD_LOG
 
         if [ $RST -ne 0 ]; then
@@ -182,6 +210,23 @@ do
                 echo "$MAKE_ERROR" >> $RESULT
                 echo >> $RESULT
                 continue
+	        else
+                echo "make...ok" >> $RESULT
+            fi
+
+
+	        TEST_ERROR=`awk '/\.failed\.$/' $LOG`
+	        TEST_TIMEOUT=`awk '/\.timeout\.$/' $LOG`
+            if [ ! -z "$TEST_ERROR" -o ! -z "$TEST_TIMEOUT" -o ! -z "$MAKE_ERROR" ]; then
+            	echo "* $BRANCH  PostgreSQL $PGSQL  $OS" >> $SUMMARY
+            	if [ ! -z "$TEST_ERROR" ]; then
+            	    echo "$TEST_ERROR" >> $SUMMARY
+            	elif [ ! -z "$TEST_TIMEOUT" ]; then
+            	    echo "$TEST_TIMEOUT" >> $SUMMARY
+	    	    elif [ ! -z "$MAKE_ERROR" ]; then
+            	    echo "$MAKE_ERROR" >> $SUMMARY
+		        fi
+		        ERROR=1
             fi
 
             awk '/^testing/,EOF' $LOG >> $RESULT
@@ -190,8 +235,14 @@ do
     done
 done
 
+if [ $ERROR -eq 0 ]; then
+    echo "All tests succeeded." >> $SUMMARY
+fi
+echo "=========================================================================" >> $SUMMARY
+echo >> $SUMMARY
+
 echo "end: " `LANG=en date`>> $RESULT
 
 if [ -n $SEND_MAIL ]; then
-    cat $RESULT | mail -s "$SUBJECT" -a "From: $FROM" -a "Reply-To: $REPLYTO" $MAILTO
+    cat $SUMMARY $RESULT | mail -s "$SUBJECT" -a "From: $FROM" -a "Reply-To: $REPLYTO" $MAILTO
 fi
