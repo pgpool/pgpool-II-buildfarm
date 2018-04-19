@@ -3,15 +3,20 @@
 FROM centos:centos6
 
 MAINTAINER Tatsuo Ishii <ishii@sraoss.co.jp>
-MAINTAINER Yugo Nagata <nagata@sraoss.co.jp>
+MAINTAINER Bo Peng <pengbo@sraoss.co.jp>
+
+ENV http_proxy http://www-proxy.sra.co.jp:80/
+ENV https_proxy http://www-proxy.sra.co.jp:80/
 
 ENV ARCH rhel-6-x86_64
 
-ENV PG_REL_RPM_93 pgdg-centos93-9.3-2.noarch.rpm
-ENV PG_REL_RPM_94 pgdg-centos94-9.4-2.noarch.rpm
+ENV PG_REL_RPM_95 pgdg-centos95-9.5-3.noarch.rpm
+ENV PG_REL_RPM_96 pgdg-centos96-9.6-3.noarch.rpm
+ENV PG_REL_RPM_10 pgdg-centos10-10-2.noarch.rpm
 
-ENV JDBC_DRIVER_93 postgresql-9.3-1104.jdbc41.jar
-ENV JDBC_DRIVER_94 postgresql-9.4-1204.jdbc42.jar
+ENV JDBC_DRIVER_95 postgresql-42.1.3.jar
+ENV JDBC_DRIVER_96 postgresql-42.1.3.jar
+ENV JDBC_DRIVER_10 postgresql-42.1.3.jar
 
 ENV PGHOME /var/lib/pgsql
 ENV JDK java-1.8.0-openjdk-devel.x86_64
@@ -24,14 +29,17 @@ RUN yum install -y wget gcc bison flex make autoconf automake git file openssl-d
 ed which openssh-server openssh-clients tar memcached libmemcached-devel ruby bc $JDK
 
 # this is neccessary for "su postgres" and to know pgsql version
-RUN rpm -ivh http://yum.postgresql.org/9.3/redhat/${ARCH}/${PG_REL_RPM_93}
-RUN rpm -ivh http://yum.postgresql.org/9.4/redhat/${ARCH}/${PG_REL_RPM_94}
-RUN yum install -y postgresql93-server
-RUN yum install -y postgresql94-server
+RUN rpm -ivh http://yum.postgresql.org/9.5/redhat/${ARCH}/${PG_REL_RPM_95}
+RUN rpm -ivh http://yum.postgresql.org/9.6/redhat/${ARCH}/${PG_REL_RPM_96}
+RUN rpm -ivh http://yum.postgresql.org/10/redhat/${ARCH}/${PG_REL_RPM_10}
+RUN yum install -y postgresql95-server
+RUN yum install -y postgresql96-server
+RUN yum install -y postgresql10-server
 
 # Download JDBC driver
-RUN wget http://jdbc.postgresql.org/download/${JDBC_DRIVER_93} -O /usr/share/${JDBC_DRIVER_93}
-RUN wget http://jdbc.postgresql.org/download/${JDBC_DRIVER_94} -O /usr/share/${JDBC_DRIVER_94}
+RUN wget http://jdbc.postgresql.org/download/${JDBC_DRIVER_95} -O /usr/share/${JDBC_DRIVER_95}
+RUN wget http://jdbc.postgresql.org/download/${JDBC_DRIVER_96} -O /usr/share/${JDBC_DRIVER_96}
+RUN wget http://jdbc.postgresql.org/download/${JDBC_DRIVER_10} -O /usr/share/${JDBC_DRIVER_10}
 
 # Clone pgpool-II source
 RUN su -c 'cd $PGHOME && git clone http://git.postgresql.org/git/pgpool2.git' postgres
