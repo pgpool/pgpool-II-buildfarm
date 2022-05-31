@@ -1,12 +1,13 @@
 #!/bin/bash
 
-TIMEOUT=8000
+TIMEOUT=7000
 
 # Do docker build?
 DOCKER_BUILD=1
 
 NO_CACHE="--no-cache"
 #NO_CACHE=""
+
 
 # day of the week to build docker images for git pull (0 means Sunday)
 BUILD_DAY=0
@@ -21,20 +22,20 @@ ERROR=0
 MAILTO=pgpool-buildfarm@your.hostname
 REPLYTO=$MAILTO
 FROM=buildfarm@your.hostname
-SUBJECT="pgpool-II buildfarm results"
+SUBJECT="pgpool-II buildfarm results $1"
 
 # directories
 SRCDIR=/var/buildfarm
 
-VOLUM=$SRCDIR/volum
+VOLUM=$SRCDIR/volum-$1
 GITROOT=$SRCDIR/docker-pgpool-II-regression
-LOGDIR=$SRCDIR/log
+LOGDIR=$SRCDIR/log-$1
 WORKDIR=$GITROOT/work
 
 # backup regression test log to other host
-REGRESSIONLOG=$SRCDIR/regression-log
-REGRESSIONLOGDIR=regression-log
-REGRESSIONLOGFILE=`date +%Y%m%d`-buildfarm.tar.gz
+REGRESSIONLOGDIR=regression-log-$1
+REGRESSIONLOG=$SRCDIR/$REGRESSIONLOGDIR
+REGRESSIONLOGFILE=`date +%Y%m%d`-buildfarm-$1.tar.gz
 LOG_BACKUP=log_backup_host
 LOG_BACKUP_DIR=log_backup_dir
 
@@ -49,12 +50,16 @@ SEDPTN="s/($COLOR|$NOCOLOR)//g"
 SED="sed -r $SEDPTN"
 
 # targets
-OS_LIST=(CentOS6 CentOS7)
-PGSQL_LIST=(9.5 9.6 10)
-BRANCH_LIST=(master V3_7_STABLE V3_6_STABLE V3_5_STABLE V3_4_STABLE V3_3_STABLE)
+#OS_LIST=(CentOS6 CentOS7)
+OS=$1
 
-#ntp server
-NTP_SERVER=sranhm
+if [ $1 = "CentOS6" ]; then
+	PGSQL_LIST=(12 11 10 9.6)
+else
+	PGSQL_LIST=(14 13 12 11 10)
+fi
+BRANCH_LIST=(master V4_3_STABLE V4_2_STABLE V4_1_STABLE V4_0_STABLE V3_7_STABLE)
+
 
 # functions
 
@@ -112,11 +117,7 @@ function printEnvInfo()
     echo "OS: $OS_OF_IMAGE ($KERNEL_OF_IMAGE)"
 }
 
-# main
-
-$SRCDIR/clean.sh
-
-ntpdate $NTP_SERVER > /dev/null
+rm -rf $VOLUM/*
 
 if [ -e $LOGDIR ]; then
     rm -rf $LOGDIR;
@@ -129,114 +130,123 @@ echo "========================================================================="
 echo "start: " `LANG=en date`>> $RESULT
 echo >> $RESULT
 
-for OS in ${OS_LIST[@]}
-do
 
-    TAG=`getTag $OS`
+TAG=`getTag $OS`
 
-    # building docker image
-    if [ -n "$DOCKER_BUILD" -o `date '+%w'` = $BUILD_DAY ]; then
-        echo -n "** building docker image ..." >> $RESULT
-        BUILD_LOG=$LOGDIR/$OS-build.log
+# building docker image
+if [ $DOCKER_BUILD -eq 1 -o `date '+%w'` = $BUILD_DAY ]; then
+    echo -n "** building docker image ..." >> $RESULT
+    BUILD_LOG=$LOGDIR/$OS-build.log
    
-        cd $GITROOT
-        DOCKERFILE_DIR=`getDockerfileDir $OS`
-        DOCKERFILE_NAME=Dockerfile.$OS
+    cd $GITROOT
+    DOCKERFILE_DIR=`getDockerfileDir $OS`
+    DOCKERFILE_NAME=Dockerfile.$OS
 
-        docker build -t $TAG -f $DOCKERFILE_NAME $NO_CACHE . >> $TMPLOG 2>&1
-        RST=$? 
-        cat $TMPLOG | col -xb | $SED > $BUILD_LOG
+    docker build -t $TAG -f $DOCKERFILE_NAME $NO_CACHE . >> $TMPLOG 2>&1
+    RST=$? 
+    cat $TMPLOG | col -xb | $SED > $BUILD_LOG
 
-        if [ $RST -ne 0 ]; then
-            echo failure. >> $RESULT
-            echo >> $RESULT
-            continue >> $RESULT
-        fi
-        echo success. >> $RESULT
+    if [ $RST -ne 0 ]; then
+        echo failure. >> $RESULT
         echo >> $RESULT
+        continue >> $RESULT
     fi
+    echo success. >> $RESULT
+    echo >> $RESULT
+fi
 
-    for BRANCH in ${BRANCH_LIST[@]}
+for BRANCH in ${BRANCH_LIST[@]}
+do
+    for PGSQL in ${PGSQL_LIST[@]}
     do
-        for PGSQL in ${PGSQL_LIST[@]}
-        do
 
-            rm -rf $VOLUM/*
-            NAME=`getName $OS $BRANCH $PGSQL`
-            LOG=$LOGDIR/${OS}_${BRANCH}_${PGSQL}.log
+        NAME=`getName $OS $BRANCH $PGSQL`
+        LOG=$LOGDIR/${OS}_${BRANCH}_${PGSQL}.log
 
-            echo "* Target branch: $BRANCH" >> $RESULT
-            echo >> $RESULT
+        echo "* Target branch: $BRANCH" >> $RESULT
+        echo >> $RESULT
 
-            # print environment information
-            printEnvInfo $TAG $PGSQL >> $RESULT
-            echo >> $RESULT
+        # print environment information
+        printEnvInfo $TAG $PGSQL >> $RESULT
+        echo >> $RESULT
 
-            # Regression test
-            echo "** Regression test" >> $RESULT
-            echo >> $RESULT
-            docker run -e PGPOOL_BRANCH=$BRANCH -e OS=$OS -e PGSQL_VERSION=$PGSQL --privileged -v $VOLUM:/var/volum --name $NAME -d $TAG > $TMPLOG 2>&1
-            #docker run -e PGPOOL_BRANCH=$BRANCH -e OS=$OS -e PGSQL_VERSION=$PGSQL --privileged --name $NAME -d $TAG > $TMPLOG 2>&1
-            timeout $TIMEOUT docker exec $NAME /tmp/start.sh >> $TMPLOG 2>&1
-            if [ ! $? -eq 0 ]; then
-                echo "buildfarm timed out" >> $TMPLOG
-            fi
+        # Regression test
+        echo "** Regression test" >> $RESULT
+        echo >> $RESULT
+        docker run -e PGPOOL_BRANCH=$BRANCH -e OS=$OS -e PGSQL_VERSION=$PGSQL --privileged -v $VOLUM:/var/volum --name $NAME -d $TAG > $TMPLOG 2>&1
+        timeout $TIMEOUT docker exec $NAME /tmp/start.sh >> $TMPLOG 2>&1
+        if [ ! $? -eq 0 ]; then
+            echo "buildfarm timed out" >> $TMPLOG
+        else
             docker kill $NAME
             docker rm $NAME
+        fi
 
-            cat $TMPLOG | col -xb | $SED > $LOG
+        cat $TMPLOG | col -xb | $SED > $LOG
 
-            CONFIGURE_ERROR=`awk '/^configure: error/' $LOG`
-            if [ ! -z "$CONFIGURE_ERROR" ]; then
-                echo "Error" >> $RESULT
-                echo "$CONFIGURE_ERROR" >> $RESULT
-                echo >> $RESULT
-                #continue
-            fi
-
-            MAKE_ERROR=`awk '/^(make: \*\*\*|make install failed)/' $LOG`
-            if [ ! -z "$MAKE_ERROR" ]; then
-                echo "Error" >> $RESULT
-                echo "$MAKE_ERROR" >> $RESULT
-                echo >> $RESULT
-                #continue
-	        else
-                echo "make...ok" >> $RESULT
-            fi
-
-	    
-	        TEST_ERROR=`awk '/\.failed\.$/' $LOG`
-			TEST_TIMEOUT=`awk '/(\.timeout\.|buildfarm timed out)$/' $LOG`
-
-            if [ ! -z "$TEST_ERROR" -o ! -z "$TEST_TIMEOUT" -o ! -z "$MAKE_ERROR" -o ! -z "$CONFIGURE_ERROR" ]; then
-            	echo "* $BRANCH  PostgreSQL $PGSQL  $OS" >> $SUMMARY
-            	if [ ! -z "$TEST_ERROR" ]; then
-            	    echo "$TEST_ERROR" >> $SUMMARY
-            	elif [ ! -z "$TEST_TIMEOUT" ]; then
-            	    echo "$TEST_TIMEOUT" >> $SUMMARY
-	    	    elif [ ! -z "$MAKE_ERROR" ]; then
-            	    echo "$MAKE_ERROR" >> $SUMMARY
-	    	    elif [ ! -z "$CONFIGURE_ERROR" ]; then
-            	    echo "$CONFIGURE_ERROR" >> $SUMMARY
-		        fi
-		        echo >> $SUMMARY
-		        ERROR=1 
-            fi
-
-            awk '/^testing/,EOF' $LOG >> $RESULT
+        CONFIGURE_ERROR=`awk '/^configure: error/' $LOG`
+        if [ ! -z "$CONFIGURE_ERROR" ]; then
+            echo "Error" >> $RESULT
+            echo "$CONFIGURE_ERROR" >> $RESULT
             echo >> $RESULT
 
-            ## move failed regression logs
-            echo "copy failed test logs to regression-log" >> $LOG
-            grep testing $TMPLOG | while read s; do
-            if echo $s | grep -qEv '\.\.\.ok\.$'; then
-                test_dir=`echo $s | cut -d ' ' -f 2 | cut -d . -f 1`
-                echo "copy $VOLUM/$OS/$PGSQL/$BRANCH/src/test/regression/tests/${test_dir}.* to regression-log" >> $LOG 
-                cp -r $VOLUM/$OS/$PGSQL/$BRANCH/src/test/regression/tests/${test_dir}.* ${REGRESSIONLOG}/$OS/$PGSQL/$BRANCH/ >> $LOG 2>&1
-                cp $LOG ${REGRESSIONLOG}/$OS/$PGSQL/$BRANCH/
+        fi
+
+        MAKE_ERROR=`awk '/^(make: \*\*\*|make install failed)/' $LOG`
+        if [ ! -z "$MAKE_ERROR" ]; then
+            echo "Error" >> $RESULT
+            echo "$MAKE_ERROR" >> $RESULT
+            echo >> $RESULT
+        else
+            echo "make...ok" >> $RESULT
+        fi
+
+
+        TEST_ERROR=`awk '/\.failed\.$/' $LOG`
+        TEST_TIMEOUT=`awk '/(\.timeout\.|buildfarm timed out)$/' $LOG`
+
+        if [ ! -z "$TEST_ERROR" -o ! -z "$TEST_TIMEOUT" -o ! -z "$MAKE_ERROR" -o ! -z "$CONFIGURE_ERROR" ]; then
+            echo "* $BRANCH  PostgreSQL $PGSQL  $OS" >> $SUMMARY
+            mkdir -p ${REGRESSIONLOG}/$OS/$PGSQL/$BRANCH/ 
+
+            if [ ! -z "$TEST_ERROR" ]; then
+                echo "$TEST_ERROR" >> $SUMMARY
+            elif [ ! -z "$TEST_TIMEOUT" ]; then
+                echo "$TEST_TIMEOUT" >> $SUMMARY
+            elif [ ! -z "$MAKE_ERROR" ]; then
+                echo "$MAKE_ERROR" >> $SUMMARY
+            elif [ ! -z "$CONFIGURE_ERROR" ]; then
+                echo "$CONFIGURE_ERROR" >> $SUMMARY
             fi
+            echo >> $SUMMARY
+            ERROR=1 
+
+            # move failed regression logs
+            echo "copy failed test logs to regression-log" >> $TMPLOG
+
+            cp -r $VOLUM/$OS/$PGSQL/$BRANCH/src/test/regression/log ${REGRESSIONLOG}/$OS/$PGSQL/$BRANCH/ >> $TMPLOG 2>&1
+            cp $LOG ${REGRESSIONLOG}/$OS/$PGSQL/$BRANCH/ >> $TMPLOG 2>&1
+
+            grep testing $TMPLOG | while read s; do
+                if echo $s | grep -qEv '\.\.\.ok\.$'; then
+                    test_dir=`echo $s | cut -d ' ' -f 2 | cut -d . -f 1`
+                    #echo "copy $VOLUM/$OS/$PGSQL/$BRANCH/src/test/regression/tests/${test_dir}.* to regression-log" >> $LOG 
+
+                    if [ $BRANCH = V3_3_STABLE ]; then
+                        cp -r $VOLUM/$OS/$PGSQL/$BRANCH/test/regression/tests/${test_dir}.* ${REGRESSIONLOG}/$OS/$PGSQL/$BRANCH/ >> $LOG 2>&1
+                    else
+                        cp -r $VOLUM/$OS/$PGSQL/$BRANCH/src/test/regression/tests/${test_dir}.* ${REGRESSIONLOG}/$OS/$PGSQL/$BRANCH/ >> $LOG 2>&1
+                    fi
+                fi
             done
-        done
+        fi
+            
+        # delete volume
+        rm -rf $VOLUM/$OS/$PGSQL/$BRANCH
+
+        awk '/^testing/,EOF' $LOG >> $RESULT
+        echo >> $RESULT
+
     done
 done
 
@@ -251,15 +261,20 @@ echo >> $RESULT
 
 # move regression test logs to log_backup_host
 cd $SRCDIR
-tar zcvf ${REGRESSIONLOGFILE} ${REGRESSIONLOGDIR}
-scp ${REGRESSIONLOGFILE} ${LOG_BACKUP}:${LOG_BACKUP_DIR}
-rm ${REGRESSIONLOGFILE}
-if [ ! $? -eq 0 ]; then
-	echo "moving regression result to log_backup_host ... failed" >> $RESULT
-else
-	echo "moving regression result to log_backup_host ... OK" >> $RESULT
+tar zcvf ${REGRESSIONLOGFILE} ${REGRESSIONLOGDIR} >> $LOG 2>&1
+if  [ -e ${REGRESSIONLOGFILE} ]; then
+    if  [ `stat -c %s ${REGRESSIONLOGFILE}` -lt 600000000 ]; then
+        scp ${REGRESSIONLOGFILE} ${LOG_BACKUP}:${LOG_BACKUP_DIR}
+    fi
 fi
+if [ ! $? -eq 0 ]; then
+    echo "moving regression result to log_backup_host ... failed" >> $RESULT
+else
+    echo "moving regression result to log_backup_host ... OK" >> $RESULT
+fi
+rm -f ${REGRESSIONLOGFILE}
+rm -rf ${REGRESSIONLOG}/*
 
 if [ -n $SEND_MAIL ]; then
-    cat $SUMMARY $RESULT | mail -s "$SUBJECT" -a "From: $FROM" -a "Reply-To: $REPLYTO" $MAILTO
+    cat $SUMMARY $RESULT | mail -s "$SUBJECT" -r $FROM $MAILTO
 fi

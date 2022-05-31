@@ -1,11 +1,12 @@
 # Docker file to run pgpool-II regression tests
 
-FROM centos:centos7
+FROM rockylinux:8
 
 MAINTAINER Tatsuo Ishii <ishii@sraoss.co.jp>
 MAINTAINER Bo Peng <pengbo@sraoss.co.jp>
 
-ENV ARCH rhel-7-x86_64
+ENV ARCH rhel-8-x86_64
+
 
 ENV JDBC_DRIVER postgresql-42.1.3.jar
 
@@ -13,27 +14,28 @@ ENV PGHOME /var/lib/pgsql
 ENV JDK java-1.8.0-openjdk-devel.x86_64
 
 RUN echo "timeout=300" >> /etc/yum.conf
-RUN yum update -y; exit 0
-RUN yum clean all
+RUN dnf update -y; exit 0
+RUN dnf clean all
 
 # Install necessary buid tools and regression test tools
-RUN yum install -y wget gcc bison flex make autoconf automake git file openssl openssl-devel \
-ed which openssh-server openssh-clients tar memcached libmemcached-devel ruby bc make net-tools patch pam-devel sudo $JDK \
-docbook docbook-dsssl docbook-sgml docbook-xsl openjade \
-jade libxslt docbook-dtds docbook-style-xsl docbook-style-dsssl
+RUN dnf install -y --enablerepo=powertools wget gcc bison flex make autoconf automake git file \
+ openssl openssl-devel ed which openssh-server openssh-clients tar memcached libmemcached-devel \
+ ruby bc make net-tools patch pam-devel sudo $JDK redhat-rpm-config rsync \
+ docbook-xsl openjade jade libxslt docbook-dtds docbook-style-xsl docbook-style-dsssl python2-libs
 
 RUN sed -i -e 's/^SGMLDECL "docbook.dcl"/  -- SGMLDECL "docbook.dcl" --/' /usr/share/sgml/docbook/sgml-dtd-*/catalog
 
-RUN yum install -y epel-release centos-release-scl
-RUN yum install -y llvm5.0 llvm-toolset-7 llvm-toolset-7-llvm-devel
+RUN dnf install -y epel-release llvm-devel clang-devel
+RUN dnf install -y ccache
 
 # this is neccessary for "su postgres" and to know pgsql version
-RUN  yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
-RUN yum install -y postgresql10-server postgresql10-devel postgresql10 postgresql10-contrib
-RUN yum install -y postgresql11-server postgresql11-devel postgresql11 postgresql11-contrib
-RUN yum install -y postgresql12-server postgresql12-devel postgresql12 postgresql12-contrib
-RUN yum install -y postgresql13-server postgresql13-devel postgresql13 postgresql13-contrib
-RUN yum install -y postgresql14-server postgresql14-devel postgresql14 postgresql14-contrib
+RUN dnf install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+RUN dnf -qy module disable postgresql
+RUN dnf install -y postgresql10-server postgresql10-devel postgresql10 postgresql10-contrib
+RUN dnf install -y postgresql11-server postgresql11-devel postgresql11 postgresql11-contrib
+RUN dnf install -y postgresql12-server postgresql12-devel postgresql12 postgresql12-contrib
+RUN dnf install -y postgresql13-server postgresql13-devel postgresql13 postgresql13-contrib
+RUN dnf install -y postgresql14-server postgresql14-devel postgresql14 postgresql14-contrib
 
 # Download JDBC driver
 RUN wget http://jdbc.postgresql.org/download/${JDBC_DRIVER} -O /usr/share/${JDBC_DRIVER}
@@ -47,12 +49,16 @@ RUN sed -ri 's/#UsePAM no/UsePAM no/g' /etc/ssh/sshd_config
 RUN su -c 'ssh-keygen -N "" -t rsa -f $PGHOME/.ssh/id_rsa;cp $PGHOME/.ssh/id_rsa.pub $PGHOME/.ssh/authorized_keys' postgres
 RUN su -c 'echo "StrictHostKeyChecking no" > $PGHOME/.ssh/config' postgres
 RUN echo "postgres:postgres" | chpasswd
+RUN echo '%postgres ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 # Add files
 ADD test.c /tmp/test.c
 ADD start.sh /tmp/start.sh
 ADD setup.sh /tmp/setup.sh
 ADD regress.sh /tmp/regress.sh
+ADD pam_test.patch /tmp/pam_test.patch
+ADD pcp_unix_domain_path.patch /tmp/pcp_unix_domain_path.patch
+ADD grep_sigint.patch /tmp/grep_sigint.patch
 
 # Disable getty
 RUN rm -f /lib/systemd/system/getty*; rm -f /lib/systemd/system/serial-getty* 
