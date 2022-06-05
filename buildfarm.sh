@@ -8,9 +8,11 @@ DOCKER_BUILD=1
 NO_CACHE="--no-cache"
 #NO_CACHE=""
 
-
 # day of the week to build docker images for git pull (0 means Sunday)
 BUILD_DAY=0
+
+# Build RPMs and test RPMs
+BUILD_RPM=0
 
 # Send mail?
 SEND_MAIL=1
@@ -54,9 +56,9 @@ SED="sed -r $SEDPTN"
 OS=$1
 
 if [ $1 = "CentOS6" ]; then
-	PGSQL_LIST=(12 11 10 9.6)
+    PGSQL_LIST=(12 11 10 9.6)
 else
-	PGSQL_LIST=(14 13 12 11 10)
+    PGSQL_LIST=(14 13 12 11 10)
 fi
 BRANCH_LIST=(master V4_3_STABLE V4_2_STABLE V4_1_STABLE V4_0_STABLE V3_7_STABLE)
 
@@ -75,7 +77,7 @@ function getName()
     OS=$1
     BRANCH=$2
     PGSQL_VERSION=$3
-	
+
     local os=`echo $OS | tr [A-Z] [a-z]`
     local POOLVER=`getPoolVer $BRANCH`
     local PGVER=`echo $PGSQL_VERSION | tr -d . | cut -c 1-2`
@@ -125,7 +127,11 @@ fi
 mkdir $LOGDIR
 rm -rf ${REGRESSIONLOG}/*
 
-echo "pgpool-II buildfarm" >> $RESULT
+if [ $BUILD_RPM -eq 1 ]; then
+    echo "pgpool-II buildfarm (Test RPMs)" >> $RESULT
+else
+    echo "pgpool-II buildfarm (Test source code)" >> $RESULT
+fi
 echo "=========================================================================" >> $SUMMARY
 echo "start: " `LANG=en date`>> $RESULT
 echo >> $RESULT
@@ -149,7 +155,6 @@ if [ $DOCKER_BUILD -eq 1 -o `date '+%w'` = $BUILD_DAY ]; then
     if [ $RST -ne 0 ]; then
         echo failure. >> $RESULT
         echo >> $RESULT
-        continue >> $RESULT
     fi
     echo success. >> $RESULT
     echo >> $RESULT
@@ -173,7 +178,13 @@ do
         # Regression test
         echo "** Regression test" >> $RESULT
         echo >> $RESULT
-        docker run -e PGPOOL_BRANCH=$BRANCH -e OS=$OS -e PGSQL_VERSION=$PGSQL --privileged -v $VOLUM:/var/volum --name $NAME -d $TAG > $TMPLOG 2>&1
+        docker run \
+            -e OS=$OS \
+            -e PGPOOL_BRANCH=$BRANCH \
+            -e PGSQL_VERSION=$PGSQL \
+            -e BUILD_RPM=$BUILD_RPM \
+            --privileged -v $VOLUM:/var/volum --name $NAME -d $TAG > $TMPLOG 2>&1
+
         timeout $TIMEOUT docker exec $NAME /tmp/start.sh >> $TMPLOG 2>&1
         if [ ! $? -eq 0 ]; then
             echo "buildfarm timed out" >> $TMPLOG

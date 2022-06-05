@@ -6,9 +6,9 @@ sysctl -w kernel.shmmax=1063256064
 sysctl -w kernel.shmall=259584
 ipcs -l
 if [ ${OS} = "CentOS6" ]; then
-	service sshd start
+    service sshd start
 else
-	systemctl start sshd
+    systemctl start sshd
 fi
 export DIRNAME=${OS}/${PGSQL_VERSION}/${PGPOOL_BRANCH}
 if [ ! -d /var/volum/${DIRNAME} ];then
@@ -17,10 +17,17 @@ fi
 chown -R postgres /var/volum/*
 . /tmp/setup.sh
 if [ `echo "$POOLVER >= 3.4" | bc` -eq 1 ];then
-	if [ ${OS} = "CentOS6" ]; then
-		service memcached start
-	else
-		systemctl start memcached
-	fi	
+    if [ ${OS} = "CentOS6" ]; then
+        service memcached start
+    else
+        systemctl start memcached
+    fi
 fi
+
+su  postgres < /tmp/build.sh
+
+if [ $BUILD_RPM -eq 1 ]; then
+    rpm -ivh $PGHOME/rpmbuild/RPMS/x86_64/pgpool-II-*
+fi
+
 su  postgres < /tmp/regress.sh

@@ -19,9 +19,9 @@ RUN dnf clean all
 
 # Install necessary buid tools and regression test tools
 RUN dnf install -y --enablerepo=powertools wget gcc bison flex make autoconf automake git file \
- openssl openssl-devel ed which openssh-server openssh-clients tar memcached libmemcached-devel \
- ruby bc make net-tools patch pam-devel sudo $JDK redhat-rpm-config rsync \
- docbook-xsl openjade jade libxslt docbook-dtds docbook-style-xsl docbook-style-dsssl python2-libs
+rpm-build openldap-devel openssl openssl-devel ed which openssh-server openssh-clients tar \
+memcached libmemcached-devel  ruby bc make net-tools patch pam-devel sudo $JDK redhat-rpm-config rsync \
+docbook-xsl openjade jade libxslt docbook-dtds docbook-style-xsl docbook-style-dsssl python2-libs
 
 RUN sed -i -e 's/^SGMLDECL "docbook.dcl"/  -- SGMLDECL "docbook.dcl" --/' /usr/share/sgml/docbook/sgml-dtd-*/catalog
 
@@ -55,12 +55,13 @@ RUN echo '%postgres ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 ADD test.c /tmp/test.c
 ADD start.sh /tmp/start.sh
 ADD setup.sh /tmp/setup.sh
+ADD build.sh /tmp/build.sh
 ADD regress.sh /tmp/regress.sh
 ADD pam_test.patch /tmp/pam_test.patch
 ADD pcp_unix_domain_path.patch /tmp/pcp_unix_domain_path.patch
 ADD grep_sigint.patch /tmp/grep_sigint.patch
 
 # Disable getty
-RUN rm -f /lib/systemd/system/getty*; rm -f /lib/systemd/system/serial-getty* 
+RUN rm -f /lib/systemd/system/getty*; rm -f /lib/systemd/system/serial-getty*
 
 CMD /sbin/init

@@ -17,8 +17,9 @@ RUN yum update -y; exit 0
 RUN yum clean all
 
 # Install necessary buid tools and regression test tools
-RUN yum install -y wget gcc bison flex make autoconf automake git file openssl openssl-devel \
-ed which openssh-server openssh-clients tar memcached libmemcached-devel ruby bc make net-tools patch pam-devel sudo $JDK \
+RUN yum install -y wget gcc bison flex make autoconf automake git file rpm-build openldap-devel \
+openssl openssl-devel ed which openssh-server openssh-clients tar memcached libmemcached-devel \
+ruby bc make net-tools patch pam-devel sudo $JDK \
 docbook docbook-dsssl docbook-sgml docbook-xsl openjade \
 jade libxslt docbook-dtds docbook-style-xsl docbook-style-dsssl
 
@@ -52,6 +53,7 @@ RUN echo "postgres:postgres" | chpasswd
 ADD test.c /tmp/test.c
 ADD start.sh /tmp/start.sh
 ADD setup.sh /tmp/setup.sh
+ADD build.sh /tmp/build.sh
 ADD regress.sh /tmp/regress.sh
 
 # Disable getty

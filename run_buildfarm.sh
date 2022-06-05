@@ -17,6 +17,6 @@ systemctl restart docker || exit 1
 
 for OS in ${OS_LIST[@]}
 do
-	rm -rf volum-${OS}7/*
+	rm -rf volum-${OS}/*
 	/var/buildfarm/buildfarm.sh ${OS}
 done
