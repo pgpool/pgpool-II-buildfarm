@@ -57,9 +57,6 @@ ADD start.sh /tmp/start.sh
 ADD setup.sh /tmp/setup.sh
 ADD build.sh /tmp/build.sh
 ADD regress.sh /tmp/regress.sh
-ADD pam_test.patch /tmp/pam_test.patch
-ADD pcp_unix_domain_path.patch /tmp/pcp_unix_domain_path.patch
-ADD grep_sigint.patch /tmp/grep_sigint.patch
 
 # Disable getty
 RUN rm -f /lib/systemd/system/getty*; rm -f /lib/systemd/system/serial-getty*

@@ -5,8 +5,8 @@ TIMEOUT=7000
 # Do docker build?
 DOCKER_BUILD=1
 
-NO_CACHE="--no-cache"
-#NO_CACHE=""
+#NO_CACHE="--no-cache"
+NO_CACHE=""
 
 # day of the week to build docker images for git pull (0 means Sunday)
 BUILD_DAY=0
@@ -52,14 +52,9 @@ SEDPTN="s/($COLOR|$NOCOLOR)//g"
 SED="sed -r $SEDPTN"
 
 # targets
-#OS_LIST=(CentOS6 CentOS7)
 OS=$1
 
-if [ $1 = "CentOS6" ]; then
-    PGSQL_LIST=(12 11 10 9.6)
-else
-    PGSQL_LIST=(14 13 12 11 10)
-fi
+PGSQL_LIST=(14 13 12 11 10)
 BRANCH_LIST=(master V4_3_STABLE V4_2_STABLE V4_1_STABLE V4_0_STABLE V3_7_STABLE)
 
 
