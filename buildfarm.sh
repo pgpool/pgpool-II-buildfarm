@@ -24,7 +24,7 @@ ERROR=0
 MAILTO=pgpool-buildfarm@your.hostname
 REPLYTO=$MAILTO
 FROM=buildfarm@your.hostname
-SUBJECT="pgpool-II buildfarm results $1"
+SUBJECT="Pgpool-II buildfarm results $1"
 
 # directories
 SRCDIR=/var/buildfarm
@@ -281,6 +281,6 @@ fi
 rm -f ${REGRESSIONLOGFILE}
 rm -rf ${REGRESSIONLOG}/*
 
-if [ -n $SEND_MAIL ]; then
+if [ -n "$SEND_MAIL" ] && [ "$SEND_MAIL" -eq 1 ]; then
     cat $SUMMARY $RESULT | mail -s "$SUBJECT" -r $FROM $MAILTO
 fi
