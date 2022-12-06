@@ -35,6 +35,7 @@ RUN yum install -y postgresql11-server postgresql11-devel postgresql11 postgresq
 RUN yum install -y postgresql12-server postgresql12-devel postgresql12 postgresql12-contrib
 RUN yum install -y postgresql13-server postgresql13-devel postgresql13 postgresql13-contrib
 RUN yum install -y postgresql14-server postgresql14-devel postgresql14 postgresql14-contrib
+RUN yum install -y postgresql15-server postgresql15-devel postgresql15 postgresql15-contrib
 
 # Download JDBC driver
 RUN wget http://jdbc.postgresql.org/download/${JDBC_DRIVER} -O /usr/share/${JDBC_DRIVER}

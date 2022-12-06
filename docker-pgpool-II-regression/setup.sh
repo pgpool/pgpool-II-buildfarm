@@ -1,7 +1,8 @@
 #!/bin/bash
 
 case $PGPOOL_BRANCH in
-    "master" ) POOLVER=4.3; POOL_REL_RPM=pgpool-II-release-4.3-1.noarch.rpm; ;;
+    "master" ) POOLVER=4.4; POOL_REL_RPM=pgpool-II-release-4.4-1.noarch.rpm; ;;
+    "V4_4_STABLE" ) POOLVER=4.4; POOL_REL_RPM=pgpool-II-release-4.4-1.noarch.rpm; ;;
     "V4_3_STABLE" ) POOLVER=4.3; POOL_REL_RPM=pgpool-II-release-4.3-1.noarch.rpm; ;;
     "V4_2_STABLE" ) POOLVER=4.2; POOL_REL_RPM=pgpool-II-release-4.2-1.noarch.rpm; ;;
     "V4_1_STABLE" ) POOLVER=4.1; POOL_REL_RPM=pgpool-II-release-4.1-1.noarch.rpm; ;;
@@ -17,7 +18,7 @@ esac
 chown -R postgres /usr/pgsql-${PGSQL_VERSION}
 
 # Install pgpool-II extension for PostgreSQL
-rpm -ihv http://www.pgpool.net/yum/rpms/${POOLVER}/redhat/${ARCH}/${POOL_REL_RPM}
+#rpm -ihv http://www.pgpool.net/yum/rpms/${POOLVER}/redhat/${ARCH}/${POOL_REL_RPM}
 #yum install -y pgpool-II-pg${PGVER}-extensions
 
 # Setup postgres account
